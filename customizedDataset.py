@@ -1,6 +1,7 @@
 import os
 
 import torch
+import torch.nn as nn
 from torch.utils.data import Dataset
 
 import matplotlib.pyplot as plt
@@ -18,7 +19,7 @@ class customizedDataset(Dataset):
                     ['PF-dataset-PASCAL','JPEGImages','Annotations',
                     ['placeholder','aeroplane', 'bicycle', 'bird', 'boat', 'bottle','bus', 'car', 'cat', 'chair', 'cow','diningtable', 'dog', 'horse', 'motorbike', 'person','pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']],}
 
-    def __init__(self,benchmark = 'pascal', datapath = 'dataset', split = 'train',verbose = True, transform = None, device = 'cuda:0',pckType = 'img'):
+    def __init__(self,benchmark = 'pascal', datapath = 'dataset', split = 'train',verbose = True, transform = None, device = 'cuda:0',pckType = 'img',visualizerPath = ''):
         
         self.benchmark = benchmark
         self.pckType = pckType
@@ -31,7 +32,7 @@ class customizedDataset(Dataset):
         self.imgPath = os.path.join(self.basePath,self.metaData[self.benchmark][1])
         self.annoPath = os.path.join(self.basePath,self.metaData[self.benchmark][2])
 
-        self.tmpPath = os.path.join(self.basePath,'tmp')
+        self.visualizerPath = visualizerPath
 
         self.classNameList = self.metaData[self.benchmark][3]
 
@@ -51,7 +52,8 @@ class customizedDataset(Dataset):
     def loadData(self):
         self.readPairFile()
         self.readAnnotations()
-        #self.visualizer(5)
+        if self.visualizerPath != '':
+            self.visualizer(166)
         
     
     def readPairFile(self):
@@ -142,6 +144,24 @@ class customizedDataset(Dataset):
         if self.verbose:
             print(srcImg.shape)
             print(trgImg.shape)
+            print(srcKps)
+        
+        n = max(srcImg.shape[1],trgImg.shape[1]) 
+
+        if srcImg.shape[1] > trgImg.shape[1]:
+            if self.data['flip'][index]:
+                m = nn.ConstantPad2d((0,0,n - trgImg.shape[1],0),0)
+            else:
+                m = nn.ConstantPad2d((0,0,0,n - trgImg.shape[1]),0)
+            trgImg = m(trgImg)
+        else:
+            m = nn.ConstantPad2d((0,0,0,n - srcImg.shape[1]),0)
+            srcImg = m(srcImg)
+        
+        if self.verbose:
+            print(srcImg.shape)
+            print(trgImg.shape)
+        
 
         jointImg = torch.cat((srcImg,trgImg),0)
         
@@ -155,7 +175,7 @@ class customizedDataset(Dataset):
             xa = float(srcKps[0,i])
             ya = float(srcKps[1,i])
             xb = float(trgKps[0,i])
-            yb = float(trgKps[1,i]) +srcImg.shape[0]
+            yb = float(trgKps[1,i])+srcImg.shape[0]
 
 
 
@@ -173,8 +193,9 @@ class customizedDataset(Dataset):
 
         plt.imshow(jointImg)
         plt.axis('off')
+
         # remove blank space around the pic
-        plt.savefig(self.tmpPath+'/debug.jpg',bbox_inches = 'tight',pad_inches = 0.0)
+        plt.savefig(self.visualizerPath+'/imagePair_annotation_orig.jpg',bbox_inches = 'tight',pad_inches = 0.0)
 
 
 
