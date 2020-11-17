@@ -52,8 +52,7 @@ class customizedDataset(Dataset):
     def loadData(self):
         self.readPairFile()
         self.readAnnotations()
-        if self.visualizerPath != '':
-            self.visualizer(166)
+
         
     
     def readPairFile(self):
@@ -75,6 +74,8 @@ class customizedDataset(Dataset):
                 self.data['clsIdx'].append(int(i[2]))
                 if self.splitType == 'train':
                     self.data['flip'].append(int(i[3]))
+                else:
+                    self.data['flip'].append(0)
         
         if self.verbose:
             print('retrieved ' + str(len(self.data['srcName']))+' valid pairs')
@@ -114,6 +115,8 @@ class customizedDataset(Dataset):
                 self.data['trgBbox'][i][0] = a - self.data['trgBbox'][i][0]
                 self.data['trgBbox'][i][2] = a - self.data['trgBbox'][i][2]
 
+
+
     def getMatValues(self,index,dtype):
 
         imgName = self.data[dtype+'Name'][index]
@@ -124,8 +127,6 @@ class customizedDataset(Dataset):
         Bbox = torch.tensor(Bbox[0].astype(float))
 
         return Kps,Bbox
-
-            
 
     def visualizer(self,index):
 
@@ -141,6 +142,7 @@ class customizedDataset(Dataset):
         trgKps = self.data[typeName+'Kps'][index]
         trgBbox = self.data[typeName+'Bbox'][index]
 
+        
         if self.verbose:
             print(srcImg.shape)
             print(trgImg.shape)
@@ -158,6 +160,7 @@ class customizedDataset(Dataset):
             m = nn.ConstantPad2d((0,0,0,n - srcImg.shape[1]),0)
             srcImg = m(srcImg)
         
+        
         if self.verbose:
             print(srcImg.shape)
             print(trgImg.shape)
@@ -170,6 +173,10 @@ class customizedDataset(Dataset):
             print(jointImg.shape)
             print(srcKps.shape)
             print(self.data['flip'][index])
+        
+        plt.cla()
+
+        
         
         for i in range(srcKps.shape[1]):
             xa = float(srcKps[0,i])
@@ -263,13 +270,18 @@ class customizedDataset(Dataset):
         sample['trgName'] = self.data['trgName'][index]
         sample['pairClassIdx'] = self.data['clsIdx'][index]
         sample['pairClass'] = self.classNameList[self.data['clsIdx'][index]]
-        sample['srcImg'] = self.loadImg(index,'src')
-        sample['trgImg'] = self.loadImg(index,'trg')
+        sample['srcImg'] = self.loadImg(index,'src').permute(2,0,1)
+        sample['trgImg'] = self.loadImg(index,'trg').permute(2,0,1)
 
         sample['srcKps'] = self.data['srcKps'][index]
         sample['trgKps'] = self.data['trgKps'][index]
         sample['srcBbox'] = self.data['srcBbox'][index]
         sample['trgBbox'] = self.data['trgBbox'][index]
+
+        if self.splitType == 'train':
+            sample['flip'] = self.data['flip'][index]
+        else:
+            sample['flip'] = 0
 
         sample['dataLen'] = len(self.data['srcName'])
 
@@ -280,18 +292,23 @@ class customizedDataset(Dataset):
         sample['trgImg'] = sample['trgImg'].to(self.device)
 
         a = 0
-        print(self.pckType)
+        #print(self.pckType)
         if self.pckType == 'bbox':
             v = sample['trgBbox']
             a = torch.max(v[3]-v[1],v[2]-v[0])
         elif self.pckType == 'img':
-            v = sample['trgImg']
-            a = torch.max(v[0],v[1])
+            v = sample['trgImg'].shape
+            #print(v)
+            a = max(v)
         else:
             print('illegal pck criterior!')
             exit()
         
         sample['pckBound'] = a
+
+        if self.visualizerPath != '':
+            self.visualizer(index)
+
         return sample
 
     def __len__(self):
